@@ -21,17 +21,17 @@ sh> docker exec -it kafka /usr/bin/kafka-configs --version
 ### 토픽 생성
 
 ```sh
-sh> docker exec -it kafka /usr/bin/kafka-topics --bootstrap-server kafka:9092 --create --topic my-topic --partitions 1 --replication-factor 1
+sh> docker exec kafka /usr/bin/kafka-topics --bootstrap-server kafka:9092 --create --topic my-topic --partitions 1 --replication-factor 1
 Created topic my-topic.
 
-sh> docker exec -it kafka /usr/bin/kafka-topics --bootstrap-server kafka:9092 --list
+sh> docker exec kafka /usr/bin/kafka-topics --bootstrap-server kafka:9092 --list
 my-topic
 ```
 
 ### Consume Messages
 
 ```sh
-sh> docker exec -it kafka /usr/bin/kafka-console-consumer --bootstrap-server kafka:9092 --topic my-topic
+sh> docker exec kafka /usr/bin/kafka-console-consumer --bootstrap-server kafka:9092 --topic my-topic
 # (Waiting...)
 ```
 
@@ -40,7 +40,7 @@ sh> docker exec -it kafka /usr/bin/kafka-console-consumer --bootstrap-server kaf
 - 새로운 shell 세션에서 열기
 
 ```sh
-sh> docker exec -it kafka /usr/bin/kafka-console-producer --bootstrap-server kafka:9092 --topic my-topic
+sh> docker exec kafka /usr/bin/kafka-console-producer --bootstrap-server kafka:9092 --topic my-topic
 > test message
 ```
 
