@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # rdb:
+  #   image: mysql:5.7.38-debian
+  #   container_name: rdb
+  #   ports:
+  #     - 3306:3306
+  #   environment:
+  #     - MYSQL_ROOT_PASSWORD=debezium
+  #     - MYSQL_DATABASE=debezium
+  #     - MYSQL_USER=username
+  #     - MYSQL_PASSWORD=password
+
+  zk:
+    image: confluentinc/cp-zookeeper:${KAFKA_VERSION}
+    container_name: zk
+    ports:
+      - 2181:2181
+    environment:
+      zk_id: 1
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:${KAFKA_VERSION}
+    container_name: kafka
+    depends_on:
+      - zk
+    ports:
+      - 9092:9092
+      # - 9094:9094
+      - 9999:9999
+    # volumes:
+    #   - ./kafka:/etc/kafka
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zk:2181
+      # KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:9094
+      # KAFKA_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://0.0.0.0:9094
+      # KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      # KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LOG4J_ROOT_LOGLEVEL: DEBUG
+      KAFKA_JMX_PORT: 9999
+
+  connect:
+    image: confluentinc/cp-kafka-connect-base:${KAFKA_VERSION}
+    container_name: connect
+    depends_on:
+      - zk
+      - kafka
+    ports:
+      - 8083:8083
+    volumes:
+      # - /var/run/docker.sock:/var/run/docker.sock
+      - ./connect/connect-file-source.properties:/etc/kafka/connect-file-source.properties
+      - ./connect/connect-file-sink.properties:/etc/kafka/connect-file-sink.properties
+      - ./connect/connect-standalone.properties:/etc/kafka/connect-standalone.properties
+      - ./connect/test.txt:/etc/kafka/test.txt
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:9092
+      CONNECT_REST_ADVERTISED_HOST_NAME: localhost
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: connect-group-test
+      CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_TOPIC: _connect-offsets
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_TOPIC: _connect-status
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      # CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      # CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      # CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: 'http://avro:8081'
+      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_PLUGIN_PATH: /usr/share/java
+      CONNECT_LOG4J_ROOT_LOGLEVEL: INFO
+
+  # schema-registry
+  avro:
+    image: confluentinc/cp-schema-registry:${KAFKA_VERSION}
+    container_name: avro
+    links:
+      - zk
+      - kafka
+    ports:
+      - 8081:8081
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: avro
+      SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: "zk:2181"
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "PLAINTEXT://kafka:9092"
+
+  # Cluster Manager for Apache Kafka
+  cmak:
+    image: hlebalbau/kafka-manager:${CMAK_VERSION}
+    container_name: cmak
+    depends_on:
+      - zk
+      - kafka
+    ports:
+      - 9000:9000
+    environment:
+      ZK_HOSTS: "zk:2181"
+      APPLICATION_SECRET: "random-secret"
+    command: -Dpidfile.path=/dev/null
+  # elasticsearch:
+  #   image: docker.elastic.co/elasticsearch/elasticsearch:7.17.3
+  #   container_name: elasticsearch
+  #   ports:
+  #     - 9200:9200
+  #     - 9300:9300
+  #   environment:
+  #     - discovery.type=single-node
+  #     - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
