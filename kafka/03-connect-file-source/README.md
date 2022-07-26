@@ -62,12 +62,7 @@ curl localhost:8083/connector-plugins | jq '.[] | .class'
 ```sh
 curl -i -X PUT -H  "Content-Type:application/json" \
   http://localhost:8083/connectors/local-file-source/config \
-  -d '{
-    "connector.class": "org.apache.kafka.connect.file.FileStreamSourceConnector",
-    "tasks.max": "1",
-    "file": "/tmp/test.txt",
-    "topic": "connect-test"
-  }'
+  -d @./connect/local-file-source.json
 
 # output
 HTTP/1.1 201 Created
@@ -85,12 +80,7 @@ Server: Jetty(9.4.44.v20210927)
 ```sh
 curl -i -X PUT -H  "Content-Type:application/json" \
   http://localhost:8083/connectors/local-file-sink/config \
-  -d '{
-    "connector.class": "org.apache.kafka.connect.file.FileStreamSinkConnector",
-    "tasks.max": "1",
-    "file": "/tmp/test.sink.txt",
-    "topics": "connect-test"
-  }'
+  -d @./connect/local-file-sink.json
 
 # output
 HTTP/1.1 200 OK
