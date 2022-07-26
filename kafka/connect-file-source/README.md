@@ -29,11 +29,104 @@ drwxrwxr-x. 1 appuser root       0 Jul  5 10:12 secrets
 ## Kafka Connect
 
 ```sh
-> curl localhost:8083
-{"version":"7.2.0-ccs","commit":"b3e5bd063f47e0a6a8dda11d53b84f253ad19491","kafka_cluster_id":"qD-P28EATQau-eJ8WkQ-tA"}
+# Kafka Connect REST Server
+curl localhost:8083 | jq
+{
+  "version": "7.2.0-ccs",
+  "commit": "b3e5bd063f47e0a6a8dda11d53b84f253ad19491",
+  "kafka_cluster_id": "XG1_JwFJRhqAwMG-dh_Tpg"
+}
+```
 
-> curl localhost:8083/connector-plugins
-[{"class":"org.apache.kafka.connect.mirror.MirrorCheckpointConnector","type":"source","version":"7.2.0-ccs"},{"class":"org.apache.kafka.connect.mirror.MirrorHeartbeatConnector","type":"source","version":"7.2.0-ccs"},{"class":"org.apache.kafka.connect.mirror.MirrorSourceConnector","type":"source","version":"7.2.0-ccs"}]
+- 생성된 Connector 조회
+
+```sh
+curl localhost:8083/connectors
+[]
+```
+
+- 설치된 Connector Plugin 조회
+
+```sh
+curl localhost:8083/connector-plugins | jq '.[] | .class'
+
+"org.apache.kafka.connect.file.FileStreamSinkConnector"
+"org.apache.kafka.connect.file.FileStreamSourceConnector"
+"org.apache.kafka.connect.mirror.MirrorCheckpointConnector"
+"org.apache.kafka.connect.mirror.MirrorHeartbeatConnector"
+"org.apache.kafka.connect.mirror.MirrorSourceConnector"
+```
+
+- File Source Connector 생성
+
+```sh
+curl -i -X PUT -H  "Content-Type:application/json" \
+  http://localhost:8083/connectors/local-file-source/config \
+  -d '{
+    "connector.class": "org.apache.kafka.connect.file.FileStreamSourceConnector",
+    "tasks.max": "1",
+    "file": "/tmp/test.txt",
+    "topic": "connect-test"
+  }'
+
+# output
+HTTP/1.1 201 Created
+Date: Tue, 26 Jul 2022 09:18:27 GMT
+Location: http://localhost:8083/connectors/local-file-source
+Content-Type: application/json
+Content-Length: 231
+Server: Jetty(9.4.44.v20210927)
+
+{"name":"local-file-source","config":{"connector.class":"org.apache.kafka.connect.file.FileStreamSourceConnector","tasks.max":"1","file":"/tmp/test.txt","topic":"connect-test","name":"local-file-source"},"tasks":[],"type":"source"}
+```
+
+- File Sink Connector 생성
+
+```sh
+curl -i -X PUT -H  "Content-Type:application/json" \
+  http://localhost:8083/connectors/local-file-sink/config \
+  -d '{
+    "connector.class": "org.apache.kafka.connect.file.FileStreamSinkConnector",
+    "tasks.max": "1",
+    "file": "/tmp/test.sink.txt",
+    "topics": "connect-test"
+  }'
+
+# output
+HTTP/1.1 200 OK
+Date: Tue, 26 Jul 2022 09:20:44 GMT
+Content-Type: application/json
+Content-Length: 269
+Server: Jetty(9.4.44.v20210927)
+
+{"name":"local-file-sink","config":{"connector.class":"org.apache.kafka.connect.file.FileStreamSinkConnector","tasks.max":"1","file":"/tmp/test.sink.txt","topics":"connect-test","name":"local-file-sink"},"tasks":[{"connector":"local-file-sink","task":0}],"type":"sink"}
+```
+
+- 생성된 Connector 조회
+
+```sh
+curl localhost:8083/connectors | jq
+[
+  "local-file-source",
+  "local-file-sink"
+]
+```
+
+- 파일 내용을 변경해서 정상적으로 동작하는지 테스트한다.
+
+```sh
+docker exec connect cat /tmp/test.txt 
+# Hello Kafka!
+docker exec connect cat /tmp/test.sink.txt
+# Hello Kafka!
+
+docker exec connect sh -c "echo $(date) >> /tmp/test.txt"
+docker exec connect cat /tmp/test.txt
+# Hello Kafka!
+# Tue Jul 26 06:24:30 PM KST 2022
+docker exec connect cat /tmp/test.sink.txt
+# Hello Kafka!
+# Tue Jul 26 06:24:30 PM KST 2022
 ```
 
 ### Standalone Mode
@@ -41,50 +134,15 @@ drwxrwxr-x. 1 appuser root       0 Jul  5 10:12 secrets
 - [docs](https://docs.confluent.io/home/connect/self-managed/userguide.html#configuring-and-running-workers)
 
 ```sh
-# -daemon
-docker exec connect \
-  /usr/bin/connect-standalone \
-  # /etc/kafka/connect-standalone.properties \
-  /etc/kafka/connect-file-source.properties \
-  /etc/kafka/connect-file-sink.properties
-
-[2022-07-25 08:03:43,184] ERROR Stopping due to error (org.apache.kafka.connect.cli.ConnectStandalone)
-org.apache.kafka.connect.errors.ConnectException: Unable to initialize REST server
-  at org.apache.kafka.connect.runtime.rest.RestServer.initializeServer(RestServer.java:200)
-  at org.apache.kafka.connect.cli.ConnectStandalone.main(ConnectStandalone.java:86)
-Caused by: java.io.IOException: Failed to bind to 0.0.0.0/0.0.0.0:8083
-  at org.eclipse.jetty.server.ServerConnector.openAcceptChannel(ServerConnector.java:349)
-  at org.eclipse.jetty.server.ServerConnector.open(ServerConnector.java:310)
-  at org.eclipse.jetty.server.AbstractNetworkConnector.doStart(AbstractNetworkConnector.java:80)
-  at org.eclipse.jetty.server.ServerConnector.doStart(ServerConnector.java:234)
-  at org.eclipse.jetty.util.component.AbstractLifeCycle.start(AbstractLifeCycle.java:73)
-  at org.eclipse.jetty.server.Server.doStart(Server.java:401)
-  at org.eclipse.jetty.util.component.AbstractLifeCycle.start(AbstractLifeCycle.java:73)
-  at org.apache.kafka.connect.runtime.rest.RestServer.initializeServer(RestServer.java:198)
-  ... 1 more
-Caused by: java.net.BindException: Address already in use
-  at java.base/sun.nio.ch.Net.bind0(Native Method)
-  at java.base/sun.nio.ch.Net.bind(Net.java:459)
-  at java.base/sun.nio.ch.Net.bind(Net.java:448)
-  at java.base/sun.nio.ch.ServerSocketChannelImpl.bind(ServerSocketChannelImpl.java:227)
-  at java.base/sun.nio.ch.ServerSocketAdaptor.bind(ServerSocketAdaptor.java:80)
-  at org.eclipse.jetty.server.ServerConnector.openAcceptChannel(ServerConnector.java:344)
-  ... 8 more
+docker exec connect cat /etc/kafka/connect-standalone.properties
 ```
 
-```sh
-docker exec connect cat /etc/kafka/connect-file-source.properties
-```
-
-## Distributed Mode
+### Distributed Mode
 
 - [docs](https://docs.confluent.io/home/connect/self-managed/userguide.html#distributed-mode)
 
-### 생성된 Connector 확인
-
 ```sh
-> curl localhost:8083/connectors
-[]
+docker exec connect cat /etc/kafka/connect-distributed.properties
 ```
 
 ## Schema Registry: Apache Avro
@@ -99,6 +157,9 @@ docker exec connect cat /etc/kafka/connect-file-source.properties
 - `FULL_TRANSITIVE` : Producer, Consumer 양측에서 호환. 동일한 버전과 **모든** 하위 버전 스키마를 읽을 수 있다.
 
 ```sh
-> curl localhost:8081/config
-{"compatibilityLevel":"BACKWARD"}
+curl localhost:8081/config | jq
+
+{
+  "compatibilityLevel": "BACKWARD"
+}
 ```
